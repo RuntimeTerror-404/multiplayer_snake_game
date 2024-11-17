@@ -1,83 +1,95 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Socket.IO Client Test</title>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-        }
-        #leaderboard {
-            margin-top: 20px;
-        }
-        #leaderboard ul {
-            list-style-type: none;
-            padding: 0;
-        }
-        #leaderboard li {
-            margin: 5px 0;
-        }
+        body { font-family: Arial, sans-serif; }
+        #gameStatus { margin-bottom: 20px; }
+        #leaderboard ul { list-style-type: none; padding: 0; }
+        #leaderboard li { margin: 5px 0; }
     </style>
 </head>
 <body>
     <h1>Socket.IO Client Test</h1>
-    
-    <div id="gameState">
+    <div id="gameStatus">
         <h2>Game State</h2>
-        <div id="gameStatus"></div>
-        <div id="foodPosition"></div>
+        <div id="snakes">loading....</div>
+        <div id="foodPosition">loading....</div>
     </div>
-    
     <div id="leaderboard">
-        <h3>Leaderboard</h3>
-        <ul>
-            <!-- Leaderboard entries will be added here -->
-        </ul>
+        <h2>Leaderboard</h2>
+        <ul></ul>
     </div>
 
     <script>
         const socket = io("http://localhost:5000");
-    
+        let playerId = null; // Store the current player's ID
+
         socket.on('connect', () => {
             console.log("Connected to server");
-            socket.emit('join_game', { player_id: 'player1' });
+            // Sending player_id explicitly
+            socket.emit('join_game', { player_id: playerId });
         });
-    
+
         socket.on('message', (data) => {
             console.log(data);
         });
-    
+
+        // Listen for game state updates
         socket.on('game_state', (data) => {
             console.log(data);
-    
-            // Update game state (snakes and food)
-            const gameStatus = document.getElementById('gameStatus');
-            const foodPosition = document.getElementById('foodPosition');
-            
-            gameStatus.innerHTML = "<strong>Snakes:</strong><br>";
-            for (let playerId in data.snakes) {
-                gameStatus.innerHTML += `${playerId}: ${JSON.stringify(data.snakes[playerId].body)}<br>`;
+
+            // Store player ID on first connect
+            if (!playerId && data.player_id) {
+                playerId = data.player_id;
             }
-    
-            foodPosition.innerHTML = `<strong>Food Position:</strong> [${data.food[0]}, ${data.food[1]}]`;
-    
-            // Update the leaderboard
+
+            // Update game state (snakes and food)
+            const snakesDiv = document.getElementById('snakes');
+            const foodPositionDiv = document.getElementById('foodPosition');
+            snakesDiv.innerHTML = "<strong>Snakes:</strong><br>";
+            foodPositionDiv.innerHTML = `<strong>Food Position:</strong> [${data.food[0]}, ${data.food[1]}]`;
+
+            for (let playerId in data.snakes) {
+                const snake = data.snakes[playerId];
+                snakesDiv.innerHTML += `${playerId}: ${JSON.stringify(snake.body)} - Score: ${snake.score}<br>`;
+            }
+
+            // Update Leaderboard
             if (data.leaderboard) {
                 updateLeaderboard(data.leaderboard);
             }
         });
-    
-        socket.on('disconnect', () => {
-            console.log("Disconnected from server");
+
+        // Keyboard controls for snake movement
+        document.addEventListener('keydown', (event) => {
+            let direction = null;
+            switch (event.key) {
+                case "ArrowUp":
+                    direction = 'UP';
+                    break;
+                case "ArrowDown":
+                    direction = 'DOWN';
+                    break;
+                case "ArrowLeft":
+                    direction = 'LEFT';
+                    break;
+                case "ArrowRight":
+                    direction = 'RIGHT';
+                    break;
+            }
+            if (direction) {
+                socket.emit('move_snake', { player_id: playerId, direction: direction });
+                console.log(`Sent move command: ${direction}`);
+            }
         });
-    
+
+        // Function to update leaderboard
         function updateLeaderboard(leaderboard) {
             const leaderboardContainer = document.getElementById('leaderboard').getElementsByTagName('ul')[0];
             leaderboardContainer.innerHTML = ''; // Clear existing leaderboard
-    
+
             leaderboard.forEach(function(entry) {
                 const li = document.createElement('li');
                 li.textContent = `${entry[0]}: ${entry[1]} points`;
@@ -85,7 +97,5 @@
             });
         }
     </script>
-
-    
 </body>
 </html>

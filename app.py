@@ -1,21 +1,21 @@
 import eventlet
 eventlet.monkey_patch()
 import random
-
 import uuid
-
 from flask import Flask, jsonify, request
 from flask_socketio import SocketIO, emit
 from game_logic import SnakeGame
 
-# Define a dictionary to store player data
-players = {}
-
+# Initialize the Flask app and SocketIO
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
+# Initialize game logic
 game = SnakeGame()
+
+# Player data to track `player_id` by session ID
+players = {}  # Store {session_id: player_id}
 
 @app.route('/')
 def index():
@@ -32,97 +32,93 @@ def handle_connect():
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print("Client disconnected")
+    sid = request.sid
+    player_id = players.pop(sid, None)
+    if player_id:
+        game.snakes.pop(player_id, None)
+        print(f"Player {player_id} disconnected.")
+    emit('game_state', {'snakes': game.snakes, 'food': game.food}, broadcast=True)
 
 @socketio.on('join_game')
 def on_join(data):
-    player_id = data.get('player_id', str(uuid.uuid4()))  # Generate a new player_id if not provided
-    game.snakes[player_id] = {
-        'body': [[random.randint(0, 20), random.randint(0, 20)] for _ in range(3)],
-        'direction': 'RIGHT',
-        'score': 0
-    }
-    print(f"Player {player_id} joined the game.")
+    # Retrieve or generate player_id
+    player_id = data.get('player_id', None)
+    if not player_id or player_id not in game.snakes:
+        # Generate a new player_id if it's not provided or not found in the game
+        player_id = str(uuid.uuid4())
+        print(f"Assigning new player ID: {player_id}")
+
+    # Register player in the game
+    if player_id not in game.snakes:
+        game.snakes[player_id] = {
+            'body': [[random.randint(0, 20), random.randint(0, 20)] for _ in range(3)],
+            'direction': 'RIGHT',
+            'score': 0
+        }
+        print(f"Player {player_id} joined the game.")
+
+    # Emit the game state back to the client, including player ID
     socketio.emit('game_state', {
         'player_id': player_id,
         'snakes': game.snakes,
         'food': game.food
     })
 
-@socketio.on('move')
-def on_move(data):
-    player_id = data['player_id']
-    direction = data['direction']
-    game.set_direction(player_id, direction)
-    
-    if not game.move_snake(player_id):
-        emit('game_over', {'player_id': player_id})
-    else:
-        # Emit the updated game state, including the leaderboard
-        leaderboard = game.get_leaderboard()
-        emit('game_state', {'snakes': game.snakes, 'food': game.food, 'leaderboard': leaderboard}, broadcast=True)
 
-@socketio.on('message')
-def handle_message(data):
-    print(f"Received message: {data}")
-    emit('message', {'data': f"Server response: {data}"})
+@socketio.on('move_snake')
+def move_snake(data):
+    player_id = data.get('player_id', None)
+
+    # Validate player_id
+    if player_id is None or player_id not in game.snakes:
+        print("Invalid player ID. Player may not have joined properly.")
+        emit('error', {'message': 'Invalid player ID'})
+        return
+
+    # Extract and validate direction
+    direction = data.get('direction', None)
+    if direction not in ['UP', 'DOWN', 'LEFT', 'RIGHT']:
+        print("Invalid direction received.")
+        emit('error', {'message': 'Invalid direction'})
+        return
+
+    # Move the snake
+    snake = game.snakes[player_id]
+    snake['direction'] = direction
+    head = list(snake['body'][0])
+    if direction == 'UP':
+        head[1] -= 1
+    elif direction == 'DOWN':
+        head[1] += 1
+    elif direction == 'LEFT':
+        head[0] -= 1
+    elif direction == 'RIGHT':
+        head[0] += 1
+
+    snake['body'].insert(0, head)
+    snake['body'].pop()
+
+    # Check for food collision
+    if head == game.food:
+        snake['score'] += 1
+        game.food = [random.randint(0, 20), random.randint(0, 20)]
+        snake['body'].append(snake['body'][-1])  # Grow snake
+
+    # Emit the updated game state
+    socketio.emit('game_state', {
+        'player_id': player_id,
+        'snakes': game.snakes,
+        'food': game.food
+    })
+
 
 @socketio.on('game_state')
 def on_game_state():
-    # Update the score for each snake based on its length
-    for player_id, snake in game.snakes.items():
-        snake['score'] = len(snake['body'])  # Using body length as score
-
-    # Generate leaderboard sorted by score (length of snake)
     leaderboard = sorted(
         [(player_id, snake['score']) for player_id, snake in game.snakes.items()],
         key=lambda x: x[1], reverse=True
     )
-    
-    # Emit the game state with leaderboard included
     emit('game_state', {'snakes': game.snakes, 'food': game.food, 'leaderboard': leaderboard}, broadcast=True)
-
-
-@socketio.on('move_snake')
-def move_snake(data):
-    player_id = data['player_id']
-    direction = data['direction']
-    if player_id in game.snakes:
-        snake = game.snakes[player_id]
-
-        # Update direction and check movement logic
-        if direction in ['UP', 'DOWN', 'LEFT', 'RIGHT']:
-            snake['direction'] = direction
-            head = list(snake['body'][0])
-            if direction == 'UP':
-                head[1] -= 1
-            elif direction == 'DOWN':
-                head[1] += 1
-            elif direction == 'LEFT':
-                head[0] -= 1
-            elif direction == 'RIGHT':
-                head[0] += 1
-
-            snake['body'].insert(0, head)
-            snake['body'].pop()  # Keep body length same initially
-
-            # Check food collision
-            if head == game.food:
-                snake['score'] += 1
-                game.food = [random.randint(0, 20), random.randint(0, 20)]
-
-        # Emit updated state to all clients
-        socketio.emit('game_state', {
-            'player_id': player_id,
-            'snakes': game.snakes,
-            'food': game.food
-        })
-
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True, log_output=True)
-
-
-
-
-

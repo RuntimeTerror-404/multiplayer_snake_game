@@ -24,78 +24,62 @@
 
     <script>
         const socket = io("http://localhost:5000");
-        let playerId = null; // Store the current player's ID
-
+        let playerId = localStorage.getItem("playerId") || null; // Retrieve player ID from localStorage
+    
+        // Function to join the game
+        function joinGame() {
+            if (!playerId) {
+                playerId = null; // Reset to null to let server assign a new ID
+            }
+            socket.emit('join_game', { player_id: playerId });
+        }
+    
+        // On connection, attempt to join the game
         socket.on('connect', () => {
             console.log("Connected to server");
-            // Sending player_id explicitly
-            socket.emit('join_game', { player_id: playerId });
+            joinGame();
         });
-
-        socket.on('message', (data) => {
-            console.log(data);
-        });
-
-        // Listen for game state updates
+    
+        // Handle game state update
         socket.on('game_state', (data) => {
             console.log(data);
-
-            // Store player ID on first connect
+    
+            // Store player ID if not already set
             if (!playerId && data.player_id) {
                 playerId = data.player_id;
+                localStorage.setItem("playerId", playerId);
+                console.log(`Assigned new playerId: ${playerId}`);
             }
-
-            // Update game state (snakes and food)
+    
+            // Render game state
             const snakesDiv = document.getElementById('snakes');
             const foodPositionDiv = document.getElementById('foodPosition');
             snakesDiv.innerHTML = "<strong>Snakes:</strong><br>";
             foodPositionDiv.innerHTML = `<strong>Food Position:</strong> [${data.food[0]}, ${data.food[1]}]`;
-
-            for (let playerId in data.snakes) {
-                const snake = data.snakes[playerId];
-                snakesDiv.innerHTML += `${playerId}: ${JSON.stringify(snake.body)} - Score: ${snake.score}<br>`;
-            }
-
-            // Update Leaderboard
-            if (data.leaderboard) {
-                updateLeaderboard(data.leaderboard);
+    
+            for (let id in data.snakes) {
+                const snake = data.snakes[id];
+                const displayId = id === playerId ? `<b>${id}</b>` : id;
+                snakesDiv.innerHTML += `${displayId}: ${JSON.stringify(snake.body)} - Score: ${snake.score}<br>`;
             }
         });
-
-        // Keyboard controls for snake movement
+    
+        // Keyboard controls for movement
         document.addEventListener('keydown', (event) => {
-            let direction = null;
-            switch (event.key) {
-                case "ArrowUp":
-                    direction = 'UP';
-                    break;
-                case "ArrowDown":
-                    direction = 'DOWN';
-                    break;
-                case "ArrowLeft":
-                    direction = 'LEFT';
-                    break;
-                case "ArrowRight":
-                    direction = 'RIGHT';
-                    break;
-            }
-            if (direction) {
-                socket.emit('move_snake', { player_id: playerId, direction: direction });
-                console.log(`Sent move command: ${direction}`);
+            const directions = {
+                "ArrowUp": "UP",
+                "ArrowDown": "DOWN",
+                "ArrowLeft": "LEFT",
+                "ArrowRight": "RIGHT"
+            };
+            const direction = directions[event.key];
+            if (direction && playerId) {
+                console.log(`Sending move for ${playerId} in direction ${direction}`);
+                socket.emit('move_snake', { player_id: playerId, direction });
             }
         });
-
-        // Function to update leaderboard
-        function updateLeaderboard(leaderboard) {
-            const leaderboardContainer = document.getElementById('leaderboard').getElementsByTagName('ul')[0];
-            leaderboardContainer.innerHTML = ''; // Clear existing leaderboard
-
-            leaderboard.forEach(function(entry) {
-                const li = document.createElement('li');
-                li.textContent = `${entry[0]}: ${entry[1]} points`;
-                leaderboardContainer.appendChild(li);
-            });
-        }
     </script>
+
+
 </body>
 </html>

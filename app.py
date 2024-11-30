@@ -97,6 +97,20 @@ def move_snake(data):
     elif direction == 'RIGHT':
         head[0] += 1
 
+    # Check for collision with obstacles
+    if head in game.obstacles:
+        print(f"Player {player_id}'s snake collided with an obstacle at {head} and died.")
+        del game.snakes[player_id]  # Remove the snake from the game
+        emit('game_state', {
+            'player_id': player_id,
+            'snakes': game.snakes,
+            'food': game.food,
+            'obstacles': game.obstacles
+        }, broadcast=True)
+        return  # Exit early since the snake is removed
+
+    
+
     snake['body'].insert(0, head)
     snake['body'].pop()
 
@@ -105,12 +119,6 @@ def move_snake(data):
         snake['score'] += 1
         game.food = [random.randint(0, 20), random.randint(0, 20)]
         snake['body'].append(snake['body'][-1])  # Grow snake
-
-    if head == game.obstacles[0][0]:
-        game.obstacles = [  # Generate 5 obstacles within bounds
-            [random.randint(0, self.board_size - 1), random.randint(0, self.board_size - 1)] 
-            for _ in range(5)
-        ]
 
     # Emit the updated game state
     socketio.emit('game_state', {

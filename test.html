@@ -113,7 +113,8 @@
         if (data.leaderboard && Array.isArray(data.leaderboard)) {
           data.leaderboard.forEach(([id, name, score]) => {
             const displayName = name || `Player ${id}`; // Use player_name if available
-            leaderboardUl.innerHTML += `<li>${displayName}: ${score}</li>`;
+            const lives = data.snakes[id]?.lives || 0;
+            leaderboardUl.innerHTML += `<li>${displayName}: ${score} (Lives: ${lives})</li>`;
           });
         }
       });

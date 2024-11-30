@@ -149,7 +149,7 @@ def move_snake(data):
 
     # Prepare leaderboard data (sorted by score)
     leaderboard = sorted(
-        [(player_id, snake['score']) for player_id, snake in game.snakes.items()],
+        [(snake['name'], snake['score'], snake['lives']) for snake in game.snakes.values()],
         key=lambda x: x[1],
         reverse=True
     )

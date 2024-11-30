@@ -109,12 +109,21 @@
 
         // Update Leaderboard
         const leaderboardUl = document.querySelector("#leaderboard ul");
-        leaderboardUl.innerHTML = "";
-        if (data.leaderboard && Array.isArray(data.leaderboard)) {
-          data.leaderboard.forEach(([id, name, score]) => {
-            const displayName = name || `Player ${id}`; // Use player_name if available
-            const lives = data.snakes[id]?.lives || 0;
-            leaderboardUl.innerHTML += `<li>${displayName}: ${score} (Lives: ${lives})</li>`;
+        leaderboardUl.innerHTML = ""; // Clear the leaderboard before updating
+
+        if (data.snakes) {
+          // Sort leaderboard by score (descending order)
+          const leaderboardData = Object.keys(data.snakes)
+            .map((id) => ({
+              name: data.snakes[id]?.name || "Unknown Player",
+              score: data.snakes[id]?.score || 0,
+              lives: data.snakes[id]?.lives || 0,
+            }))
+            .sort((a, b) => b.score - a.score);
+
+          // Append each player to the leaderboard
+          leaderboardData.forEach((player) => {
+            leaderboardUl.innerHTML += `<li>${player.name}: Score ${player.score}, Lives ${player.lives}</li>`;
           });
         }
       });

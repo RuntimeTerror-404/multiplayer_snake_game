@@ -37,7 +37,7 @@ def handle_disconnect():
     if player_id:
         game.snakes.pop(player_id, None)
         print(f"Player {player_id} disconnected.")
-    emit('game_state', {'snakes': game.snakes, 'food': game.food}, broadcast=True)
+    emit('game_state', {'snakes': game.snakes, 'food': game.food, 'obstacles': game.obstacles}, broadcast=True)
 
 @socketio.on('join_game')
 def on_join(data):
@@ -61,8 +61,10 @@ def on_join(data):
     socketio.emit('game_state', {
         'player_id': player_id,
         'snakes': game.snakes,
-        'food': game.food
+        'food': game.food,
+        'obstacles': game.obstacles
     })
+    print("obstacles in game: ", game.obstacles)
 
 
 @socketio.on('move_snake')
@@ -104,21 +106,36 @@ def move_snake(data):
         game.food = [random.randint(0, 20), random.randint(0, 20)]
         snake['body'].append(snake['body'][-1])  # Grow snake
 
+    if head == game.obstacles[0][0]:
+        game.obstacles = [  # Generate 5 obstacles within bounds
+            [random.randint(0, self.board_size - 1), random.randint(0, self.board_size - 1)] 
+            for _ in range(5)
+        ]
+
     # Emit the updated game state
     socketio.emit('game_state', {
         'player_id': player_id,
         'snakes': game.snakes,
-        'food': game.food
+        'food': game.food,
+        'obstacles': game.obstacles
     })
 
 
 @socketio.on('game_state')
-def on_game_state():
+def on_game_state(data=None):
     leaderboard = sorted(
         [(player_id, snake['score']) for player_id, snake in game.snakes.items()],
         key=lambda x: x[1], reverse=True
     )
-    emit('game_state', {'snakes': game.snakes, 'food': game.food, 'leaderboard': leaderboard}, broadcast=True)
+    game_state = {
+        'snakes': game.snakes,
+        'food': game.food,
+        'obstacles': game.obstacles,
+        'leaderboard': leaderboard
+    }
+    print("Obstacles in game state:", game.obstacles)
+    socketio.emit('game_state', game_state, broadcast=True)
+
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True, log_output=True)

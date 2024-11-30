@@ -1,14 +1,28 @@
 import random
 
-
 class SnakeGame:
     def __init__(self):
         self.board_size = 20
+        self.obstacles = [  # Generate 5 obstacles within bounds
+            [random.randint(0, self.board_size - 1), random.randint(0, self.board_size - 1)] 
+            for _ in range(5)
+        ]
         self.snakes = {}
+        # self.food = [random.randint(0, 20), random.randint(0, 20)]
         self.food = self.generate_food()
+        
+
+    def reset_obstacles(self):
+        self.obstacles = [
+            [random.randint(0, self.board_size - 1), random.randint(0, self.board_size - 1)] 
+            for _ in range(5)
+        ]
 
     def generate_food(self):
-        return [random.randint(0, self.board_size - 1), random.randint(0, self.board_size - 1)]
+        while True:
+            food = [random.randint(0, self.board_size - 1), random.randint(0, self.board_size - 1)]
+            if food not in self.obstacles and all(food not in snake['body'] for snake in self.snakes.values()):
+                return food
 
     def add_snake(self, player_id):
         # Initialize a snake with a length of 3 at a random position
@@ -16,7 +30,7 @@ class SnakeGame:
         self.snakes[player_id] = {
             'body': [[x, y], [x, y - 1], [x, y - 2]],
             'direction': 'RIGHT',
-            'score': 0  # Initialize score based on snake length
+            'score': 0
         }
 
     def set_direction(self, player_id, direction):
@@ -31,7 +45,7 @@ class SnakeGame:
         head = snake['body'][0]
         direction = snake['direction']
 
-        # Determine new head position based on direction
+        # Determine new head position
         if direction == 'UP':
             new_head = [head[0], head[1] - 1]
         elif direction == 'DOWN':
@@ -51,13 +65,17 @@ class SnakeGame:
         if new_head in snake['body']:
             return False
 
+        # Check collision with obstacles
+        if new_head in self.obstacles:
+            return False  # End game for the player
+
         # Move the snake
         snake['body'].insert(0, new_head)
 
         # Check if food is eaten
         if new_head == self.food:
             self.food = self.generate_food()
-            snake['score'] += 1  # Increase score for eating food
+            snake['score'] += 1
         else:
             snake['body'].pop()  # Remove tail if no food eaten
 

@@ -1,85 +1,122 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <title>Socket.IO Client Test</title>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; }
-        #gameStatus { margin-bottom: 20px; }
-        #leaderboard ul { list-style-type: none; padding: 0; }
-        #leaderboard li { margin: 5px 0; }
+      body {
+        font-family: Arial, sans-serif;
+      }
+      #gameStatus {
+        margin-bottom: 20px;
+      }
+      #leaderboard ul {
+        list-style-type: none;
+        padding: 0;
+      }
+      #leaderboard li {
+        margin: 5px 0;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <h1>Socket.IO Client Test</h1>
     <div id="gameStatus">
-        <h2>Game State</h2>
-        <div id="snakes">loading....</div>
-        <div id="foodPosition">loading....</div>
+      <h2>Game State</h2>
+      <div id="snakes">loading....</div>
+      <div id="foodPosition">loading....</div>
+      <div id="obstacles">loading....</div>
     </div>
     <div id="leaderboard">
-        <h2>Leaderboard</h2>
-        <ul></ul>
+      <h2>Leaderboard</h2>
+      <ul></ul>
     </div>
 
     <script>
-        const socket = io("http://localhost:5000");
-        let playerId = localStorage.getItem("playerId") || null; // Retrieve player ID from localStorage
-    
-        // Function to join the game
-        function joinGame() {
-            if (!playerId) {
-                playerId = null; // Reset to null to let server assign a new ID
-            }
-            socket.emit('join_game', { player_id: playerId });
+      const socket = io("http://localhost:5000");
+      let playerId = localStorage.getItem("playerId") || null; // Retrieve player ID from localStorage
+
+      // Function to join the game
+      function joinGame() {
+        if (!playerId) {
+          playerId = null; // Reset to null to let the server assign a new ID
         }
-    
-        // On connection, attempt to join the game
-        socket.on('connect', () => {
-            console.log("Connected to server");
-            joinGame();
-        });
-    
-        // Handle game state update
-        socket.on('game_state', (data) => {
-            console.log(data);
-    
-            // Store player ID if not already set
-            if (!playerId && data.player_id) {
-                playerId = data.player_id;
-                localStorage.setItem("playerId", playerId);
-                console.log(`Assigned new playerId: ${playerId}`);
-            }
-    
-            // Render game state
-            const snakesDiv = document.getElementById('snakes');
-            const foodPositionDiv = document.getElementById('foodPosition');
-            snakesDiv.innerHTML = "<strong>Snakes:</strong><br>";
-            foodPositionDiv.innerHTML = `<strong>Food Position:</strong> [${data.food[0]}, ${data.food[1]}]`;
-    
-            for (let id in data.snakes) {
-                const snake = data.snakes[id];
-                const displayId = id === playerId ? `<b>${id}</b>` : id;
-                snakesDiv.innerHTML += `${displayId}: ${JSON.stringify(snake.body)} - Score: ${snake.score}<br>`;
-            }
-        });
-    
-        // Keyboard controls for movement
-        document.addEventListener('keydown', (event) => {
-            const directions = {
-                "ArrowUp": "UP",
-                "ArrowDown": "DOWN",
-                "ArrowLeft": "LEFT",
-                "ArrowRight": "RIGHT"
-            };
-            const direction = directions[event.key];
-            if (direction && playerId) {
-                console.log(`Sending move for ${playerId} in direction ${direction}`);
-                socket.emit('move_snake', { player_id: playerId, direction });
-            }
-        });
+        socket.emit("join_game", { player_id: playerId });
+      }
+
+      // On connection, attempt to join the game
+      socket.on("connect", () => {
+        console.log("Connected to server");
+        joinGame();
+      });
+
+      // Handle game state update
+      socket.on("game_state", (data) => {
+        console.log("Game State:", data);
+
+        // Store player ID if not already set
+        if (!playerId && data.player_id) {
+          playerId = data.player_id;
+          localStorage.setItem("playerId", playerId);
+          console.log(`Assigned new playerId: ${playerId}`);
+        }
+
+        // Update Snakes
+        const snakesDiv = document.getElementById("snakes");
+        snakesDiv.innerHTML = "<strong>Snakes:</strong><br>";
+        for (let id in data.snakes) {
+          const snake = data.snakes[id];
+          const displayId = id === playerId ? `<b>${id}</b>` : id;
+          snakesDiv.innerHTML += `${displayId}: ${JSON.stringify(
+            snake.body
+          )} - Score: ${snake.score}<br>`;
+        }
+
+        // Update Food Position
+        const foodPositionDiv = document.getElementById("foodPosition");
+        foodPositionDiv.innerHTML = `<strong>Food Position:</strong> [${data.food[0]}, ${data.food[1]}]`;
+
+        // Update Obstacles
+        const obstaclesDiv = document.getElementById("obstacles");
+        obstaclesDiv.innerHTML = "<strong>Obstacles:</strong><br>";
+
+        if (data.obstacles && Array.isArray(data.obstacles) && data.obstacles.length > 0) {
+          data.obstacles.forEach((obstacle, index) => {
+            obstaclesDiv.innerHTML += `Obstacle ${index + 1}: [${obstacle[0]}, ${obstacle[1]}]<br>`;
+          });
+        } else {
+          obstaclesDiv.innerHTML += "No obstacles in the game state.";
+        }
+
+        // Update Leaderboard
+        const leaderboardUl = document.querySelector("#leaderboard ul");
+        leaderboardUl.innerHTML = "";
+        if (data.leaderboard && Array.isArray(data.leaderboard)) {
+          data.leaderboard.forEach(([player, score]) => {
+            leaderboardUl.innerHTML += `<li>${player}: ${score}</li>`;
+          });
+        }
+      });
+
+      // Handle game over
+      socket.on("game_over", (data) => {
+        alert(`Game Over! Player ${data.player_id} collided with an obstacle.`);
+      });
+
+      // Keyboard controls for movement
+      document.addEventListener("keydown", (event) => {
+        const directions = {
+          ArrowUp: "UP",
+          ArrowDown: "DOWN",
+          ArrowLeft: "LEFT",
+          ArrowRight: "RIGHT",
+        };
+        const direction = directions[event.key];
+        if (direction && playerId) {
+          console.log(`Sending move for ${playerId} in direction ${direction}`);
+          socket.emit("move_snake", { player_id: playerId, direction });
+        }
+      });
     </script>
-
-
-</body>
+  </body>
 </html>

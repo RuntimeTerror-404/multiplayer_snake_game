@@ -42,20 +42,28 @@ def handle_disconnect():
 @socketio.on('join_game')
 def on_join(data):
     # Retrieve or generate player_id
+    player_name = data.get('player_name', None)
     player_id = data.get('player_id', None)
     if not player_id or player_id not in game.snakes:
         # Generate a new player_id if it's not provided or not found in the game
         player_id = str(uuid.uuid4())
         print(f"Assigning new player ID: {player_id}")
 
+    # Validate player_name
+    if not player_name:
+        player_name = f"Player_{random.randint(1000, 9999)}" 
+
     # Register player in the game
     if player_id not in game.snakes:
         game.snakes[player_id] = {
+            'name': player_name,
             'body': [[random.randint(0, 20), random.randint(0, 20)] for _ in range(3)],
             'direction': 'RIGHT',
             'score': 0
         }
-        print(f"Player {player_id} joined the game.")
+        print(f"{player_name} joined the game with ID: {player_id}")
+
+    players[request.sid] = player_id
 
     # Emit the game state back to the client, including player ID
     socketio.emit('game_state', {
@@ -132,7 +140,7 @@ def move_snake(data):
 @socketio.on('game_state')
 def on_game_state(data=None):
     leaderboard = sorted(
-        [(player_id, snake['score']) for player_id, snake in game.snakes.items()],
+        [(player_id, snake['name'], snake['score']) for player_id, snake in game.snakes.items()],
         key=lambda x: x[1], reverse=True
     )
     game_state = {

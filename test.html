@@ -36,12 +36,23 @@
       const socket = io("http://localhost:5000");
       let playerId = localStorage.getItem("playerId") || null; // Retrieve player ID from localStorage
 
+      // Prompt for player name on page load
+      const playerName = prompt("Enter your name to join the game:", "Player");
+
+      if (!playerName) {
+        alert("Name is required to join the game.");
+        throw new Error("Player name is required.");
+      }
+
       // Function to join the game
       function joinGame() {
         if (!playerId) {
           playerId = null; // Reset to null to let the server assign a new ID
         }
-        socket.emit("join_game", { player_id: playerId });
+        socket.emit("join_game", {
+          player_name: playerName,
+          player_id: playerId,
+        });
       }
 
       // On connection, attempt to join the game
@@ -66,7 +77,9 @@
         snakesDiv.innerHTML = "<strong>Snakes:</strong><br>";
         for (let id in data.snakes) {
           const snake = data.snakes[id];
-          const displayId = id === playerId ? `<b>${id}</b>` : id;
+          const displayName = snake.name || `Player ${id}`; // Use player_name if available
+          const displayId =
+            id === playerId ? `<b>${displayName}</b>` : displayName;
           snakesDiv.innerHTML += `${displayId}: ${JSON.stringify(
             snake.body
           )} - Score: ${snake.score}<br>`;
@@ -80,9 +93,15 @@
         const obstaclesDiv = document.getElementById("obstacles");
         obstaclesDiv.innerHTML = "<strong>Obstacles:</strong><br>";
 
-        if (data.obstacles && Array.isArray(data.obstacles) && data.obstacles.length > 0) {
+        if (
+          data.obstacles &&
+          Array.isArray(data.obstacles) &&
+          data.obstacles.length > 0
+        ) {
           data.obstacles.forEach((obstacle, index) => {
-            obstaclesDiv.innerHTML += `Obstacle ${index + 1}: [${obstacle[0]}, ${obstacle[1]}]<br>`;
+            obstaclesDiv.innerHTML += `Obstacle ${index + 1}: [${
+              obstacle[0]
+            }, ${obstacle[1]}]<br>`;
           });
         } else {
           obstaclesDiv.innerHTML += "No obstacles in the game state.";
@@ -92,15 +111,18 @@
         const leaderboardUl = document.querySelector("#leaderboard ul");
         leaderboardUl.innerHTML = "";
         if (data.leaderboard && Array.isArray(data.leaderboard)) {
-          data.leaderboard.forEach(([player, score]) => {
-            leaderboardUl.innerHTML += `<li>${player}: ${score}</li>`;
+          data.leaderboard.forEach(([id, name, score]) => {
+            const displayName = name || `Player ${id}`; // Use player_name if available
+            leaderboardUl.innerHTML += `<li>${displayName}: ${score}</li>`;
           });
         }
       });
 
       // Handle game over
       socket.on("game_over", (data) => {
-        alert(`Game Over! Player ${data.player_id} collided with an obstacle.`);
+        const playerName =
+          data.snakes[data.player_id]?.name || "Unknown Player";
+        alert(`Game Over! Player ${playerName} collided with an obstacle.`);
       });
 
       // Keyboard controls for movement

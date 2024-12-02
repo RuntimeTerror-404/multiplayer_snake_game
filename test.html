@@ -31,10 +31,48 @@
       <h2>Leaderboard</h2>
       <ul></ul>
     </div>
+    <div id="chat">
+      <h3>Chat</h3>
+      <div
+        id="chat-messages"
+        style="
+          border: 1px solid #ccc;
+          height: 200px;
+          overflow-y: scroll;
+          padding: 10px;
+        "
+      ></div>
+      <input type="text" id="chat-input" placeholder="Type your message..." />
+      <button id="send-chat-btn">Send</button>
+    </div>
 
     <script>
       const socket = io("http://localhost:5000");
-      let playerId = localStorage.getItem("playerId") || null; // Retrieve player ID from localStorage
+      let playerId = localStorage.getItem("playerId") || null;
+      // Chat message handling
+      const chatInput = document.getElementById("chat-input");
+      const sendChatBtn = document.getElementById("send-chat-btn");
+      const chatMessagesDiv = document.getElementById("chat-messages");
+
+      // Send chat message to the server
+      sendChatBtn.addEventListener("click", () => {
+        const message = chatInput.value.trim();
+        if (message) {
+          socket.emit("chat_message", { player_name: playerName, message });
+          chatInput.value = ""; // Clear the input field
+        }
+      });
+
+      // Receive chat messages from the server
+      socket.on("chat_message", (data) => {
+        const { player_name, message } = data;
+        const messageDiv = document.createElement("div");
+        messageDiv.textContent = `${player_name}: ${message}`;
+        chatMessagesDiv.appendChild(messageDiv);
+
+        // Auto-scroll to the latest message
+        chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+      });
 
       // Prompt for player name on page load
       const playerName = prompt("Enter your name to join the game:", "Player");

@@ -188,5 +188,15 @@ def on_game_state(data=None):
     socketio.emit("game_state", game_state, broadcast=True)
 
 
+@socketio.on('chat_message')
+def handle_chat_message(data):
+    player_name = data.get('player_name', 'Unknown')
+    message = data.get('message', '')
+    print(f"Chat message from {player_name}: {message}")
+
+    # Broadcast the chat message to all clients
+    socketio.emit('chat_message', {'player_name': player_name, 'message': message})
+
+
 if __name__ == "__main__":
     socketio.run(app, host="0.0.0.0", port=5000, debug=True, log_output=True)
